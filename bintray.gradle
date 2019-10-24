@@ -1,0 +1,85 @@
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.bintray'
+
+def artifactName = 'ShannonAsyncTask'
+def gitUrl = 'https://github.com/ShannonMobile/ShannonAsyncTask'
+def artifactIdDefined = "shannonasynctask"
+
+version = "0.1.0"
+group = "com.mobile.shannon"
+
+bintray {
+    Properties properties = new Properties()
+    properties.load(project.rootProject.file('local.properties').newDataInputStream())
+    user = properties.getProperty('BINTRAY_USER')
+    key = properties.getProperty('BINTRAY_KEY')
+    publications = ['Production']
+    configurations = ['archives']
+
+    dryRun = false
+    publish = true
+
+    pkg {
+        repo = 'maven'              // 必填。bintray平台仓库名，必须已经创建过。
+        name = artifactName            // 必填。仓库里包package的名称，没有的话会自动创建。
+        licenses = ['Apache-2.0']   // 首次创建package则必须，否则选填。
+        vcsUrl = gitUrl        // 首次创建package则必须，否则选填。
+        version {
+            name = this.version
+        }
+    }
+}
+
+publishing {
+    publications {
+        Production(MavenPublication) {
+            groupId this.group
+            artifactId artifactIdDefined
+            version this.version
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                // Iterate over the implementation dependencies (we don't want the test ones), adding a <dependency> node for each
+                configurations.implementation.allDependencies.each {
+                    // Ensure dependencies such as fileTree are not included in the pom.
+                    if (it.name != 'unspecified') {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', it.group)
+                        dependencyNode.appendNode('artifactId', it.name)
+                        dependencyNode.appendNode('version', it.version)
+                    }
+                }
+            }
+        }
+    }
+}
+
+task sourcesJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs[0]
+    classifier = 'sources'
+}
+
+task javadoc(type: Javadoc) {
+    failOnError false
+    excludes = ['**/*.kt'] // .kt生成不了javadoc，需要排除出去
+    source = android.sourceSets.main.java.srcDirs[0]
+    classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+javadoc {
+    options{
+        encoding "UTF-8"
+        charSet 'UTF-8'
+        author true
+        version true
+    }
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
